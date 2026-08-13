@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>오늘의 날씨</title>
+    <style>
+      :root {
+        --sky-1: #eaf7ff;
+        --sky-2: #d7f0ff;
+        --card: rgba(255, 255, 255, 0.75);
+        --card-border: rgba(128, 179, 255, 0.3);
+        --text: #17324d;
+        --subtext: #4f6b84;
+        --primary: #5ca8ff;
+        --primary-dark: #2f7fe6;
+        --shadow: rgba(53, 117, 189, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: linear-gradient(135deg, var(--sky-1), var(--sky-2));
+        font-family: Arial, sans-serif;
+        color: var(--text);
+      }
+
+      .container {
+        width: min(92vw, 520px);
+      }
+
+      .card {
+        background: var(--card);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--card-border);
+        border-radius: 24px;
+        box-shadow: 0 16px 40px var(--shadow);
+        padding: 28px 24px;
+      }
+
+      h1 {
+        margin: 0 0 20px;
+        font-size: clamp(1.7rem, 2.2vw, 2.3rem);
+        text-align: center;
+      }
+
+      .search-box {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+
+      input {
+        flex: 1;
+        border: 1px solid #cfe8ff;
+        border-radius: 12px;
+        padding: 14px 16px;
+        font-size: 16px;
+        outline: none;
+        background: rgba(255, 255, 255, 0.8);
+      }
+
+      input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(92, 168, 255, 0.15);
+      }
+
+      button {
+        border: none;
+        border-radius: 12px;
+        padding: 14px 18px;
+        background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        color: white;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: transform 0.15s ease, opacity 0.2s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      .result {
+        display: none;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 22px;
+        border: 1px solid rgba(137, 170, 255, 0.24);
+        padding: 22px 20px;
+        margin-top: 8px;
+      }
+
+      .result.visible {
+        display: block;
+      }
+
+      .city-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .city-name {
+        font-size: clamp(1.3rem, 2vw, 1.8rem);
+        font-weight: 700;
+      }
+
+      .weather-icon {
+        font-size: 48px;
+      }
+
+      .temp {
+        font-size: clamp(2.1rem, 5vw, 3.2rem);
+        font-weight: 800;
+        margin-bottom: 4px;
+      }
+
+      .condition {
+        font-size: 1.1rem;
+        color: var(--subtext);
+      }
+
+      .error {
+        margin-top: 12px;
+        color: #c62828;
+        font-weight: 600;
+        min-height: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>오늘의 날씨</h1>
+
+        <div class="search-box">
+          <input id="cityInput" type="text" placeholder="도시 이름을 입력하세요" value="Seoul" />
+          <button id="searchBtn">검색</button>
+        </div>
+
+        <div id="result" class="result">
+          <div class="city-row">
+            <div id="cityName" class="city-name">서울</div>
+            <div id="weatherIcon" class="weather-icon">☀️</div>
+          </div>
+          <div id="temp" class="temp">25°C</div>
+          <div id="condition" class="condition">맑음</div>
+        </div>
+
+        <div id="error" class="error"></div>
+      </div>
+    </div>
+
+    <script>
+      const cityInput = document.getElementById('cityInput');
+      const searchBtn = document.getElementById('searchBtn');
+      const result = document.getElementById('result');
+      const cityNameEl = document.getElementById('cityName');
+      const weatherIconEl = document.getElementById('weatherIcon');
+      const tempEl = document.getElementById('temp');
+      const conditionEl = document.getElementById('condition');
+      const errorEl = document.getElementById('error');
+
+      const weatherMap = {
+        0: { label: '맑음', icon: '☀️' },
+        1: { label: '대체로 맑음', icon: '🌤️' },
+        2: { label: '부분적으로 흐림', icon: '⛅' },
+        3: { label: '흐림', icon: '☁️' },
+        45: { label: '안개', icon: '🌫️' },
+        48: { label: '얼얼한 안개', icon: '🌫️' },
+        51: { label: '약한 이슬비', icon: '🌦️' },
+        53: { label: '이슬비', icon: '🌦️' },
+        55: { label: '강한 이슬비', icon: '🌧️' },
+        56: { label: '차가운 이슬비', icon: '🌧️' },
+        57: { label: '강한 차가운 이슬비', icon: '🌧️' },
+        61: { label: '약한 비', icon: '🌦️' },
+        63: { label: '비', icon: '🌧️' },
+        65: { label: '강한 비', icon: '🌧️' },
+        66: { label: '약한 눈비', icon: '🌧️' },
+        67: { label: '강한 눈비', icon: '🌧️' },
+        71: { label: '약한 눈', icon: '🌨️' },
+        73: { label: '눈', icon: '❄️' },
+        75: { label: '강한 눈', icon: '❄️' },
+        77: { label: '눈알갱이', icon: '🌨️' },
+        80: { label: '약한 소나기', icon: '🌦️' },
+        81: { label: '소나기', icon: '🌧️' },
+        82: { label: '강한 소나기', icon: '🌧️' },
+        85: { label: '약한 눈소나기', icon: '🌨️' },
+        86: { label: '눈소나기', icon: '🌨️' },
+        95: { label: '천둥번개', icon: '⛈️' },
+        96: { label: '천둥번개(우박)', icon: '⛈️' },
+        99: { label: '강한 천둥번개', icon: '⛈️' }
+      };
+
+      async function fetchWeather(city) {
+        const geocodeUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=ko&format=json`;
+        const geoRes = await fetch(geocodeUrl);
+        const geoData = await geoRes.json();
+
+        if (!geoData.results || geoData.results.length === 0) {
+          throw new Error('해당 도시를 찾을 수 없습니다.');
+        }
+
+        const place = geoData.results[0];
+        const lat = place.latitude;
+        const lon = place.longitude;
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+
+        const weatherRes = await fetch(weatherUrl);
+        const weatherData = await weatherRes.json();
+
+        if (!weatherData.current) {
+          throw new Error('현재 날씨 정보를 불러오지 못했습니다.');
+        }
+
+        const code = weatherData.current.weather_code;
+        const temp = weatherData.current.temperature_2m;
+        const condition = weatherMap[code] || { label: '알 수 없음', icon: '❔' };
+
+        return {
+          city: place.name,
+          temp,
+          condition: condition.label,
+          icon: condition.icon
+        };
+      }
+
+      async function searchWeather() {
+        const city = cityInput.value.trim();
+        if (!city) {
+          errorEl.textContent = '도시 이름을 입력해주세요.';
+          result.classList.remove('visible');
+          return;
+        }
+
+        try {
+          errorEl.textContent = '';
+          const data = await fetchWeather(city);
+          cityNameEl.textContent = data.city;
+          tempEl.textContent = `${Math.round(data.temp)}°C`;
+          conditionEl.textContent = data.condition;
+          weatherIconEl.textContent = data.icon;
+          result.classList.add('visible');
+        } catch (error) {
+          result.classList.remove('visible');
+          errorEl.textContent = error.message;
+        }
+      }
+
+      searchBtn.addEventListener('click', searchWeather);
+      cityInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          searchWeather();
+        }
+      });
+
+      searchWeather();
+    </script>
+  </body>
+</html>
